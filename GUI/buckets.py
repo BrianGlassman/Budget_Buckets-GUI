@@ -1,13 +1,77 @@
 # General imports
 import dash
-from dash import html
 from dash.dash_table import DataTable
+from dataclasses import dataclass, field
+import itertools
 
 
 # Project imports
 from BaseLib.CategoryList import categories
 from Validation.Buckets import Types
 
+
+# I would like to create multiple DataTables and combine them
+# But apparently that makes it a huge pain to style correctly
+# So do this instead
+@dataclass
+class DataTableMaker:
+    columns: list[dict]
+    '[List of Dicts of {"id": unique ID string, "name": [list of header entries]} for each column]'
+    data: list[dict]
+    '[List of Dicts of {"column id": column value} for each row]'
+    # merge_duplicate_headers: bool # Always merge
+    # style_header: dict # Force styling
+    # page_action: str # Always use "none"
+    tooltip_header: dict[str, str] = field(default_factory=dict)
+
+    chain = itertools.chain.from_iterable
+
+    @classmethod
+    def combine(cls, *others: "DataTableMaker"):
+        ret = DataTableMaker([], [], {})
+        for i, o in enumerate(others):
+            ret.columns.extend({'name': column['name'], 'id': f"{i}.{column['id']}"} for column in o.columns)
+
+            data = [{f"{i}.{id}":val for id, val in d.items()} for d in o.data]
+            if len(ret.data) == 0:
+                ret.data = data
+            else:
+                assert len(ret.data) == len(data), f"Must have the same number of rows, got {len(ret.data)} and {len(data)}"
+                for row_i in range(len(ret.data)):
+                    ret.data[row_i].update(data[row_i])
+
+            ret.tooltip_header.update({f"{i}.{id}": val for id, val in o.tooltip_header.items()})
+
+        # Make sure multi-row headers are all the same depth
+        header_depth = len(ret.columns[0]['name'])
+        assert all(len(column['name']) == header_depth for column in ret.columns)
+
+        return ret
+    
+    def make(self, fixed_columns: int):
+        # Style to indicate a tooltip is present
+        tt_indicator = {'textDecoration': 'underline', 'textDecorationStyle': 'dotted'}
+        
+        style_header = dict(textAlign='center')
+
+        return DataTable(
+            columns=self.columns,
+            data = self.data,
+            merge_duplicate_headers = True,
+            style_header = style_header,
+            style_header_conditional=[{
+                'if': {
+                    'header_index': len(self.columns[0]['name']) - 1, # Only apply to the last row of multi-row headers
+                    'column_id': list(self.tooltip_header.keys())
+                },
+                **tt_indicator
+            }],
+            page_action = "none",
+            tooltip_header = self.tooltip_header,
+            # fixed_rows={'headers': True}, # FIXME this should just freeze the headers, but also squishes some columns
+            fixed_columns={'headers': True, 'data': fixed_columns},
+            style_table={'minWidth': '100%'},
+        )
 
 # File format
 # Second row is descriptions
@@ -51,25 +115,27 @@ header = (
     "Unfilled",
 )
 
-# Style to indicate a tooltip is present
-tt_indicator = {'textDecoration': 'underline', 'textDecorationStyle': 'dotted'}
-
 
 def Buckets(data: Types.BucketsFull):
     months = [make_month(*item) for item in data.months.items()]
     transitions = [make_transition(*item) for item in data.transitions.items()]
 
-    mt = [val for pair in zip(months, transitions) for val in pair]
+    # The category list at the far left
+    category_table = make_categories()
 
-    combined = html.Div([
-        html.Div([make_categories()], style={'display': 'inline-block'}),
-        html.Div([make_initial(data.initial)], style={'display': 'inline-block'}),
-        html.Div([
-            html.Div([item], style={'display': 'inline-block'}) for item in mt
-        ], style={'display': 'inline-block'}),
-        ], style={'overflow-x': 'scroll', 'white-space': 'nowrap'},
+    # Initial values
+    initial_table = make_initial(data.initial)
+
+    # Interleave Months and transitions
+    mt_table = [val for pair in zip(months, transitions) for val in pair]
+
+    # Combine all the components
+    combined = DataTableMaker.combine(
+        category_table,
+        initial_table,
+        *mt_table,
     )
-    return combined
+    return combined.make(fixed_columns=len(category_table.columns))
 
 def make_ValueCapacityCritical(data: Types.ValueCapacityCritical):
     header = [
@@ -92,12 +158,9 @@ def make_ValueCapacityCritical(data: Types.ValueCapacityCritical):
     # Turn lists into a single dict
     columns = [{'name': h, 'id': h} for h in header]
     # Make the table
-    table = DataTable(
+    table = DataTableMaker(
         columns=columns,
-        merge_duplicate_headers=True,
-        style_header=dict(textAlign='center'),
         data=table_data,
-        page_action='none',
     )
     return table
 
@@ -131,18 +194,15 @@ def make_ChangeSet(data: Types.ChangeSet):
     # Turn lists into a single dict
     columns = [{'name': h, 'id': h} for h in header]
     # Make the table
-    table = DataTable(
+    table = DataTableMaker(
         columns=columns,
-        merge_duplicate_headers=True,
-        style_header=dict(textAlign='center'),
         data=table_data,
-        page_action='none',
     )
     return table
 
-def add_header(table: DataTable, new_row):
+def add_header(table: DataTableMaker, new_row):
     """Adds a new row to the header of the table"""
-    columns = table.columns # type: ignore # PyLance thinks there's no .columns, but there is
+    columns = table.columns
 
     # Allow passing a string to fill an entire row
     if isinstance(new_row, str):
@@ -162,11 +222,11 @@ def make_transition(month: str, data: Types.TransitionFull):
     start_next = make_ValueCapacityCritical(data.start_next)
     add_header(start_next, "Result")
 
-    return html.Div([
-        html.Div([end_previous], style={'display': 'inline-block'}),
-        html.Div([changes], style={'display': 'inline-block'}),
-        html.Div([start_next], style={'display': 'inline-block'}),
-    ])
+    return DataTableMaker.combine(
+        end_previous,
+        changes,
+        start_next,
+    )
 
 def make_month(month: str, data: Types.MonthFull):
     table_data = [d.values() for d in data.columns.values()]
@@ -188,13 +248,10 @@ def make_month(month: str, data: Types.MonthFull):
     # Turn lists into a single dict
     columns = [{'name': name, 'id': id} for name, id in zip(names, header)]
     # Make the table
-    table = DataTable(
+    table = DataTableMaker(
         columns=columns,
         tooltip_header=tooltips,
-        merge_duplicate_headers=True,
-        style_header=tt_indicator | dict(textAlign='center'),
         data=table_data,
-        page_action='none',
     )
     return table
 
@@ -206,26 +263,24 @@ def make_initial(initial: Types.ValueCapacityCritical):
 
 def make_categories():
     """The category list at the far left"""
-    names = ['Dir', 'Broad', 'Specific', 'Key']
+    # TODO handle Dir, Broad, and Specific columns, not just Key (category)
+    # names = ['Dir', 'Broad', 'Specific', 'Key']
+    names = ['Key']
     ids = names.copy()
     names = [['', name] for name in names]
 
-    # TODO handle Dir, Broad, and Specific columns, not just Key (category)
     table_data = []
     for cat in categories:
-        row = ['']*3 + [cat]
+        row = ['']*(len(names) - 1) + [cat]
         table_data.append(dict((id, value) for id, value in zip(ids, row)))
 
     # --- Table ---
     # Turn lists into a single dict
     columns = [{'name': name, 'id': id} for name, id in zip(names, ids)]
     # Make the table
-    table = DataTable(
+    table = DataTableMaker(
         columns=columns,
-        merge_duplicate_headers=True,
-        style_header=dict(textAlign='center'),
         data=table_data,
-        page_action='none',
     )
     return table
 
