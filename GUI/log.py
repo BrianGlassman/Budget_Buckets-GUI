@@ -4,6 +4,7 @@ import dash
 
 # Project imports
 from Validation.Log import LogItem
+import Categorize
 
 
 # File format
@@ -25,11 +26,14 @@ section_headers = (
     section_header_template +
     ['My Category', 'E', 'Comment']
 )
+# Only category and comment are editable
+editable = [(key in Categorize.output_keys) for key in meta_header]
 
 def Log(data: list[LogItem]):
     # --- Data ---
     table_data = []
     for item in data:
+        # Not a comprehension because it's exploding the values
         row = []
         for key in item_keys:
             row.extend(item[key].values())
@@ -54,7 +58,7 @@ def Log(data: list[LogItem]):
         ids[i] = name
 
     # Turn lists into a single dict
-    columns = [{'name': name, 'id': id} for name, id in zip(names, ids)]
+    columns = [{'name': name, 'id': id, 'editable': edit} for name, id, edit in zip(names, ids, editable)]
     
     # --- Table ---
     table = dash.dash_table.DataTable(
@@ -65,6 +69,25 @@ def Log(data: list[LogItem]):
         page_size=50,
         # page_action='none', # Can uncomment to show everything on one page, but then it gets pretty slow
     )
+
+    # TODO Move this out and reference it, rather than defining here
+    # TODO only works with the "one rule per transaction" system, won't work with general rules
+    @dash.callback(
+        dash.Input(table, 'data'),
+        dash.State(table, 'data_previous'),
+        prevent_initial_call=True,
+    )
+    def onChange(new_data, old_data):
+        """Callback triggered when data in the table is changed"""
+        changed_rows = [new_row for new_row, old_row in zip(new_data, old_data) if new_row != old_row]
+        for row in changed_rows:
+            rule = Categorize.rules[Categorize.make_key(row)]
+            for key in Categorize.output_keys:
+                if rule[key] == row[key]: continue
+                # FIXME make sure category is valid (or just make it a dropdown instead of text)
+                print(f"Changing {key}: {rule[key]} --> {row[key]}")
+                rule[key] = row[key]
+
     return table
 
 if __name__ == "__main__":
