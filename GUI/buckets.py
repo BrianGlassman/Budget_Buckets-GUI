@@ -7,7 +7,7 @@ import itertools
 
 # Project imports
 from BaseLib.CategoryList import categories
-from Validation.Buckets import Types
+from Buckets import Types
 
 
 # I would like to create multiple DataTables and combine them
@@ -286,7 +286,7 @@ def make_categories():
 
 if __name__ == "__main__":
     # Data handling
-    from Validation.Buckets import load_buckets_data
+    from Buckets import load_buckets_data
     data = load_buckets_data()
 
     # Dash

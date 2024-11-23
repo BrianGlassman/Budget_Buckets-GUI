@@ -51,7 +51,7 @@ def Aggregate(data: list):
 
 if __name__ == "__main__":
     # Data handling
-    from Validation.Aggregate import load_aggregate_data
+    from Aggregate import load_aggregate_data
     data = load_aggregate_data()
 
     # Dash

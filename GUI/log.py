@@ -3,7 +3,7 @@ import dash
 
 
 # Project imports
-from Validation.Log import LogItem
+from Log import LogItem
 import Categorize
 
 
@@ -95,7 +95,7 @@ def Log(data: list[LogItem]):
 
 if __name__ == "__main__":
     # Data handling
-    from Validation.Log import load_log_data
+    from Log import load_log_data
     data = load_log_data()
 
     # Dash
