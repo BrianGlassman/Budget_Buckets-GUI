@@ -81,12 +81,15 @@ def Log(data: list[LogItem]):
         """Callback triggered when data in the table is changed"""
         changed_rows = [new_row for new_row, old_row in zip(new_data, old_data) if new_row != old_row]
         for row in changed_rows:
-            rule = Categorize.rules[Categorize.make_key(row)]
+            rule = Categorize.get_rule(row)
             for key in Categorize.output_keys:
                 if rule[key] == row[key]: continue
                 # FIXME make sure category is valid (or just make it a dropdown instead of text)
                 print(f"Changing {key}: {rule[key]} --> {row[key]}")
                 rule[key] = row[key]
+        
+        # TODO make a save button instead
+        Categorize.save_rules()
 
     return table
 
