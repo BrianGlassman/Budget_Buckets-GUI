@@ -7,26 +7,6 @@ from functools import partial
 import GUI
 
 
-# Wrappers around GUI elements
-def log():
-    from Loading.ExcelToJSON.log import xls_to_json
-    from Log import load_log_data
-    xls_to_json()
-    data = load_log_data()
-    return GUI.Log(data)
-def aggregate():
-    from Loading.ExcelToJSON.aggregate import xls_to_json
-    from Aggregate import load_aggregate_data
-    xls_to_json()
-    data = load_aggregate_data()
-    return GUI.Aggregate(data)
-def buckets():
-    from Loading.ExcelToJSON.buckets import xls_to_json
-    from Buckets import load_buckets_data
-    xls_to_json()
-    data = load_buckets_data()
-    return GUI.Buckets(data)
-
 def main():
     app = Dash(__name__)
     
@@ -39,9 +19,9 @@ def main():
     # Define the "tabs"
     buttons = []
     for tag, callback in (
-        ('Log', log),
-        ('Aggregate', aggregate),
-        ('Buckets', buckets),
+        ('Log', GUI.log.wrapper),
+        ('Aggregate', GUI.aggregate.wrapper),
+        ('Buckets', GUI.buckets.wrapper),
     ):
         button = html.Button(tag, id=tag)
         buttons.append(button)

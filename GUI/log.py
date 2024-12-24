@@ -93,12 +93,15 @@ def Log(data: list[LogItem]):
 
     return table
 
-if __name__ == "__main__":
-    # Data handling
+def wrapper():
+    """Wraps the GUI with appropriate data loading"""
+    from Loading.ExcelToJSON.log import xls_to_json
     from Log import load_log_data
+    xls_to_json()
     data = load_log_data()
+    return Log(data)
 
-    # Dash
+if __name__ == "__main__":
     app = dash.Dash(__name__)
-    app.layout = dash.html.Div(Log(data))
+    app.layout = dash.html.Div(wrapper())
     app.run(debug=False)

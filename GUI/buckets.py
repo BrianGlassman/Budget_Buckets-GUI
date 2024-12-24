@@ -284,12 +284,15 @@ def make_categories():
     )
     return table
 
-if __name__ == "__main__":
-    # Data handling
+def wrapper():
+    """Wraps the GUI with appropriate data loading"""
+    from Loading.ExcelToJSON.buckets import xls_to_json
     from Buckets import load_buckets_data
+    xls_to_json()
     data = load_buckets_data()
+    return Buckets(data)
 
-    # Dash
+if __name__ == "__main__":
     app = dash.Dash(__name__)
-    app.layout = dash.html.Div(Buckets(data))
+    app.layout = dash.html.Div(wrapper())
     app.run(debug=True)

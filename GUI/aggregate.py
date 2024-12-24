@@ -49,12 +49,15 @@ def Aggregate(data: list):
     )
     return table
 
-if __name__ == "__main__":
-    # Data handling
+def wrapper():
+    """Wraps the GUI with appropriate data loading"""
+    from Loading.ExcelToJSON.aggregate import xls_to_json
     from Aggregate import load_aggregate_data
+    xls_to_json()
     data = load_aggregate_data()
+    return Aggregate(data)
 
-    # Dash
+if __name__ == "__main__":
     app = dash.Dash(__name__)
-    app.layout = dash.html.Div(Aggregate(data))
+    app.layout = dash.html.Div(wrapper())
     app.run(debug=False)
